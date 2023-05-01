@@ -71,3 +71,10 @@ after each photo is taken, but it is inconsistent about that. It's a good idea
 to operate slowly.
 
 Eli the Bearded, 30 April 2023
+
+![my setup](setup.jpg)
+
+Next time, I'll include less overlap between pages on the crop:
+
+https://archive.org/details/booklet_202304/page/n11/mode/2up
+
