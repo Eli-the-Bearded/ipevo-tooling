@@ -1,0 +1,77 @@
+#!/usr/bin/perl
+# Takes two files *order* and *file* and uses numbers in
+# the order file to order the files in the files file.
+# Both are one line per entry formatted.
+# 
+# Dumb but simple implementation 
+# 30 April 2023
+use warnings;
+use strict;
+
+# never returns
+sub usage {
+  print STDERR "Usage:   orderfiles [ foor.order basr.file | quux.file flub.order ]\n";
+  print STDERR "Using the names to guess the contents, takes two files each\n";
+  print STDERR "formatted one entry per line to use one to order the contents\n";
+  print STDERR "of the other.\n";
+  print STDERR "\n";
+  print STDERR "Numbers are expected in page number format, no leading zeros, start at 1.\n";
+  print STDERR "\n";
+  print STDERR "In the event of file name ambguity, first ordering assumed.\n";
+  print STDERR "Uses a dumb but simple implementation.\n";
+  exit 2;
+}
+
+my $a = shift;
+my $b = shift;
+my $order;
+my $files;
+my @order;
+my @files;
+my @sorted;
+my $min;
+my $max;
+
+if ( !defined $b or !-f $b or !-f $a ) {
+  warn "Not enough arguments.\n";
+  usage();
+}
+
+if ($a =~ /order/i and $b =~ /file/i) {
+  $order = $a;
+  $files = $b;
+} elsif ($b =~ /order/i and $a =~ /file/i) {
+  $order = $b;
+  $files = $a;
+} else {
+  warn "Not sure which file is which.\n";
+  usage();
+}
+
+open(ORDER,'<', $order) or die "Failed to open $order: $!\n";
+open(FILES,'<', $files) or die "Failed to open $files: $!\n";
+
+# order is more likely hand created, so be more flexible about spaces
+while(<ORDER>) { s/^\s+//; s/\s+$//; push(@order, $_); }
+while(<FILES>) { chomp; push(@files, $_); }
+
+if($#order != $#files) {
+  die "Line count mismatch, $order: $#order, $files: $#files\n";
+}
+
+my $i = 0;
+for my $n (@order) {
+  if (!defined $min or $min > $n) { $min = $n; }
+  if (!defined $max or $max < $n) { $max = $n; }
+  $n --;
+
+  $sorted[$n] = $files[$i];
+  $i ++;
+}
+
+if ($max - $min != $#order) {
+  die "Saw minimum $min and max $max, doesn't match line count.\n";
+}
+
+print join("\n", @sorted), "\n";
+__END__

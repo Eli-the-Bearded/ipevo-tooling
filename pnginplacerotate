@@ -1,0 +1,20 @@
+#!/bin/sh
+# 30 April 2023
+
+rotation="$1"
+rot=
+
+case "$rotation" in
+    90|cw)   rot=90 ;;
+   180|aro*) rot=180 ;;
+   270|ccw)  rot=270 ;;
+      *)     echo "Usage:"
+             echo "  pnginplacerotate [cw|ccw|around|90|180|270] png [png...]"
+             exit 2 ;;
+esac
+shift
+
+for png ; do
+  echo "$png"
+  convert "$png" -rotate $rot "$png"
+done

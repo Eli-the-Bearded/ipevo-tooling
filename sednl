@@ -1,0 +1,11 @@
+#!/usr/bin/perl
+use strict;
+use warnings;
+
+my $pattern = shift;
+if (!defined $pattern) { $pattern = '\s+'; }
+
+while(<>) {
+  s/$pattern/\n/g;
+  print;
+}

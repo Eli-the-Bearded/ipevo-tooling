@@ -1,0 +1,68 @@
+#!/bin/ksh
+# Make a PDF from a bunch of images. Uses several config
+# files to control the process. Run from directory with files or
+# put the directory on the command line.
+#
+# Control files:
+#    files	(required) list of images to use (one per line)
+#    order      (optional) order to put the images in (line N of order
+#		has page number for line N of files)
+#    title      (optional) used for output filename (will be cooked to
+#               remove whitespace and with .pdf added to end); default
+#               file is booklet.pdf
+# 
+# Metadata files, all, if found, will be passed in to img2pdf for that
+# metadata field:
+#
+#    subject    
+#    author    
+#    title    
+#    producer    
+#    creator    
+#    creationdate    
+#    moddate    
+#
+# Final PDF creation with img2pdf (packages available for some distros, or
+# https://github.com/josch/img2pdf) for reduced loss # making PDFs from
+# images compared to Imagemagick.
+# 30 April 2023
+
+dir="$1"
+if [ "x$dir" != x ] ; then
+  if ! cd "$dir" ; then
+    echo "Failed to cd into $dir."
+    echo "Please read script for usage."
+    exit 2
+  fi
+fi
+
+if [ ! -f files ] ; then
+  echo "Please read script for usage."
+  exit 2
+fi
+
+output=booklet.pdf
+options=
+metadata="subject author title producer creator creationdate moddate"
+# tab, new line, and cariage return most important
+control=$(perl -e 'printf "%c-%c", 1, 31')
+
+for file in $metadata ; do
+  if [ -f $file ] ; then
+    options="$options --$file \"\$(< $file)\""
+  fi
+done
+
+if [ -f title ] ; then
+  output=$( tr -d "$control" < title | tr -cs 'A-Za-z0-9_.-' _ )'.pdf'
+fi
+
+if [ -f order ] ; then
+  usefiles="\$( orderfiles order files )"
+else
+  usefiles="\$(< files )"
+fi
+
+# show what we are doing
+set -x
+eval "img2pdf -o '$output' $options $usefiles"

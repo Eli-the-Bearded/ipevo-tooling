@@ -1,0 +1,132 @@
+#!/bin/ksh
+# Use xdotool to make Ipevo V4K document camera more keyboard friendly
+# Relies on default placement (0,0) and size of window
+# 29 April 2023
+
+# Supplied by Ipevo as a Linux tool. It runs, for me, with openjdk Java 11.
+# It's got a non-system-standard GUI interface.
+jar=/usr/bin/visualizer-1.1.4.39.jar
+
+workdir=${1:-.}
+cd $workdir || exit
+
+# save the terminal, so we can return keyboard focus there
+host=$(xdotool getactivewindow)
+
+# how long to wait for a photo before deciding it is broken
+maxwait=10
+
+launch() {
+  # filter out the most verbose output
+  java -jar $jar 2>&1 |
+    perl -wne '
+       next if /======polling=======/;
+       next if /refreshCameraList/;
+       next if /awake test/;
+       next if /sleep interrupted/;
+       print;
+    ' &
+}
+
+# locate the java program by jar name to kill it
+terminate() {
+   # column headers with colname=ColHeader, here blank headers
+   # use output format pid (possibly with leading spaces) and command with args
+   pid=$( ps -u $(id -nu) -o pid= -o args= | 
+          grep "$jar" |
+	  grep -v grep | 
+	  sed 's/ [^0-9].*//'
+	)
+   kill $pid
+}
+
+# used for finding newer files
+# -a to ensure something even in an empty directory
+last() { ls -art $workdir | tail -1; }
+
+# name found with
+#   sleep 3; xdotool selectwindow getwindowname
+# does _not_ match name from xwininfo
+# (is a child window in "xwininfo -all -frame" output)
+#
+# co-ordinates to use found with
+#   sleep 5; xdotool search -name "Frame" getmouselocation
+camfocus()  { xdotool search -name "Frame" mousemove --sync 1246 713 click 1 ; }
+photo()     { xdotool search -name "Frame" mousemove --sync  609 713 click 1 ; }
+
+# for keyboard focus
+termfocus() { xdotool windowfocus $host; }
+
+# full cycle is: focus, snap a pic, return keyboard focus, save the name of the snap
+cycle() {
+  camfocus;
+  sleep 5;
+  lastpic=$( last );
+  photo;
+  newpic=$( last );
+  termfocus 
+
+  tries=0
+  while [ "$newpic" = "$lastpic" ] ; do
+     if [[ $tries > $maxwait ]] ; then 
+       echo "Photo seems to not be coming. Maybe time to quit?"
+       return
+     fi
+     sleep 1;
+     tries=$(( tries + 1 ))
+     newpic=$( last );
+  done;
+  snaps="$snaps $newpic";
+}
+
+# Usage while running
+prompt() {
+  printf "Basic operation: return to capture, q to quit.\n"
+  printf "f to explicitly focus.\n"
+  printf "p to take picture without waiting for focus (not stored in list)\n"
+  printf "l to list pictures so far\n"
+  printf "h for this help\n"
+}
+
+# wait until after visualizer startup output has finished
+delayprompt() {
+  ( sleep 10; prompt ) &
+}
+
+# saved picture list
+list() {
+  echo "Picture list: $snaps"
+}
+
+main() {
+  launch
+  delayprompt
+  working=yes
+  sleep 2; before=$( last )
+  snaps=
+
+  while [ $working = yes ] ; do
+    read -n 1 action
+    # with -n the terminal may echo ^M for return, so wipe it out
+    printf "\r  \r"
+
+    case "$action" in
+      [qQ]*) working=no           ;;
+      [hH]*) prompt               ;;
+      [lL]*) list                 ;;
+      [fF]*) camfocus ; termfocus ;;
+      [pP]*) photo    ; termfocus ;;
+
+      # yes, this is greedy
+      *)     cycle                ;;
+    esac
+  done
+
+  terminate
+  list
+
+  echo "Or use:"
+  echo "find $workdir -type f -newer '$workdir/$before' ! -name \*xml"
+}
+
+main
