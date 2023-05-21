@@ -25,13 +25,21 @@ Basic workflow works like this:
    ipevo-keyboard
    ```
 5. After start-up, you can set preferences if you like in the Ipevo program. 
-   The tool will deposit preferences in an xml file in the current directory.
-   I find it helpful to leave the Ipevo window in the upper left and put my
+   Visualizer will deposit preferences in an xml file in the current directory.
+   A standardized set of preferences will be seeded to the directory:
+     Agrees to the EULA
+     Sets camera to maximum resolution
+     Sets save location to current directory
+     Enables sounds for focus and photo (I find Visualizer is flakey about sound)
+   Without the save location preference, the script fails to find output.
+6. I find it helpful to leave the Ipevo window in the upper left and put my
    terminal in the lower right. The `ipevo-keyboard` reads and operates on
    single characters, not complete lines, in a break from typical shell scripts.
    Usage inside the script:
    ```
    Basic operation: return to capture, q to quit.
+
+   c to calibrate UI button location
    f to explicitly focus.
    p to take picture without waiting for focus (not stored in list)
    l to list pictures so far
@@ -40,7 +48,7 @@ Basic workflow works like this:
    The script controls the Visualizer program using `xdotool` to simulate mouse
    movement and clicks plus some hard coded constants (comments in the script
    has the code I used to figure them out).
-6. I take pictures in an "all odd pages", "all even pages", then "backfill
+7. I take pictures in an "all odd pages", "all even pages", then "backfill
    reshoots" order.  I put the images I want to use in a file called "files",
    just regular `ls` order. I view the images in a viewer, my preference is
    `feh` and note down the page numbers in a file called "order" file. It's
@@ -51,17 +59,17 @@ Basic workflow works like this:
    ```
    echo 1 3 5 7 9 2 4 6 8 10 | sednl > order
    ```
-7. Stick metadata that `img2pdf` uses like 'title', 'subject', etc in files
+8. Stick metadata that `img2pdf` uses like 'title', 'subject', etc in files
    by those names. The `subject` file content will be passed in as a
    `--subject "Subject here"` line.
-8. Crop and/or rotate all images if neeed. `pnginplacerotate` will automate
+9. Crop and/or rotate all images if neeed. `pnginplacerotate` will automate
    clockwise (`cw`), counter-clockwise (`ccw`), and `around` rotations, eg:
    ```
    pnginplacerotate ccw *png
    ```
    For cropping, I (grudgingly) use `gimp`, generally configured with a fixed
    size crop so I can just click and drag the crop rectangle before overwriting.
-9. Build the final pdf:
+10. Build the final pdf:
    ```
    mkpdfbook
    ```

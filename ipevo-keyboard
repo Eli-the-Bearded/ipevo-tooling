@@ -10,12 +10,51 @@ jar=/usr/bin/visualizer-1.1.4.39.jar
 workdir=${1:-.}
 cd $workdir || exit
 
+# name found with
+#   sleep 3; xdotool selectwindow getwindowname
+# does _not_ match name from xwininfo
+# (is a child window in "xwininfo -all -frame" output)
+window_name=Frame
+
+# co-ordinates to use found with
+#   sleep 5; xdotool search -name "Frame" getmouselocation
+# recalibrate with 'c'
+focus_x=1246
+focus_y=713
+photo_x=609
+photo_y=713
+
 # save the terminal, so we can return keyboard focus there
 host=$(xdotool getactivewindow)
 
 # how long to wait for a photo before deciding it is broken
 maxwait=10
 
+# Preload the directory with the config files visualizer will dump.
+# Avoids having to agree with the software license every time the
+# directory changes and preloads the current directory as save location.
+checkxml() {
+  write_test=.write_test__$$ 
+  if ! touch $write_test ; then
+    echo "Can't write to current directory."
+    exit 2
+  else 
+    rm $write_test
+  fi
+
+  if [ ! -f camera_config.xml ] ; then
+    cat <<_CAMERA_CONFIG | sed -e 's/^ *//' > camera_config.xml
+      <?xml version="1.0" encoding="UTF-8" standalone="no"?><camera_configs><Camera camera_name="IPEVO V4K" exposure="7" exposure_lock="False" focus_lock="False" focus_type="afs" focus_value="150" mirror_type="0" resolution="3264 x 2448" uvc_contrast="0" uvc_gamma="100" uvc_hue="0" uvc_powerFrequency="60Hz" uvc_saturation="25" uvc_shapeness="2" whitebalance_lock="False" whitebalance_value="3192"/></camera_configs>
+_CAMERA_CONFIG
+  fi
+  if [ ! -f config.xml ] ; then
+    cat <<_CONFIG | sed -e 's/^ *//' -e 's;"PWD";"'"$PWD"'";' > config.xml
+      <?xml version="1.0" encoding="UTF-8" standalone="no"?><app_configs appVer="1.1.4.39" customSnapFormat="CustomName" customSnapPathChk="True" customSnapPathToken="PWD" digitCounter="1" eula_agree_ver="1.1.4.39" keepCameraSetting="True" snapFormat_1="True" snapFormat_2="False" snapFormat_3="False" soundFocus="True" soundSnap="True"/>
+_CONFIG
+  fi
+}
+
+# start the visualizer sub-process and filter some of the output
 launch() {
   # filter out the most verbose output
   java -jar $jar 2>&1 |
@@ -37,29 +76,59 @@ terminate() {
 	  grep -v grep | 
 	  sed 's/ [^0-9].*//'
 	)
-   kill $pid
+
+   # maybe the app is closed already
+   if [ "$pid" != "" ] ; then  
+     kill $pid
+   fi
 }
 
 # used for finding newer files
 # -a to ensure something even in an empty directory
 last() { ls -art $workdir | tail -1; }
 
-# name found with
-#   sleep 3; xdotool selectwindow getwindowname
-# does _not_ match name from xwininfo
-# (is a child window in "xwininfo -all -frame" output)
-#
-# co-ordinates to use found with
-#   sleep 5; xdotool search -name "Frame" getmouselocation
-camfocus()  { xdotool search -name "Frame" mousemove --sync 1246 713 click 1 ; }
-photo()     { xdotool search -name "Frame" mousemove --sync  609 713 click 1 ; }
+# helper for calibrate
+scrollrows() {
+  count=$1
+  while expr $count \> 0 >/dev/null; do
+    echo
+    count=$(( count - 1 ))
+  done
+}
+
+# record the UI button locations
+calibrate() {
+  rows=$(stty -a | grep -o 'rows [1-9][0-9]*;' | tr -cd 0-9)
+  rows=$(( rows - 2 ))
+  scrollrows $rows
+
+  echo "Within the next five seconds place the cursor over the focus button."
+  sleep 5
+  eval $(xdotool getmouselocation --shell)
+  echo "Have focus button at $X,$Y"
+  focus_x=$X
+  focus_y=$Y
+
+  scrollrows $rows
+  echo "Within the next five seconds place the cursor over the take photo button."
+  sleep 5
+  eval $(xdotool getmouselocation --shell)
+  echo "Have photo button at $X,$Y"
+  photo_x=$X
+  photo_y=$Y
+}
+
+# push UI buttons for the user
+focus()  { xdotool search -name "$window_name" mousemove --sync $focus_x $focus_y click 1 ; }
+photo()  { xdotool search -name "$window_name" mousemove --sync $photo_x $photo_y click 1 ; }
+
 
 # for keyboard focus
 termfocus() { xdotool windowfocus $host; }
 
 # full cycle is: focus, snap a pic, return keyboard focus, save the name of the snap
 cycle() {
-  camfocus;
+  focus;
   sleep 5;
   lastpic=$( last );
   photo;
@@ -81,7 +150,8 @@ cycle() {
 
 # Usage while running
 prompt() {
-  printf "Basic operation: return to capture, q to quit.\n"
+  printf "Basic operation: return to capture, q to quit.\n\n"
+  printf "c to calibrate UI button location\n"
   printf "f to explicitly focus.\n"
   printf "p to take picture without waiting for focus (not stored in list)\n"
   printf "l to list pictures so far\n"
@@ -99,6 +169,7 @@ list() {
 }
 
 main() {
+  checkxml
   launch
   delayprompt
   working=yes
@@ -114,8 +185,9 @@ main() {
       [qQ]*) working=no           ;;
       [hH]*) prompt               ;;
       [lL]*) list                 ;;
-      [fF]*) camfocus ; termfocus ;;
+      [fF]*) focus    ; termfocus ;;
       [pP]*) photo    ; termfocus ;;
+      [cC]*) calibrate; termfocus ;;
 
       # yes, this is greedy
       *)     cycle                ;;
